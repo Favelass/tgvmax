@@ -24,7 +24,7 @@ def main():
     for j in allv:
         data.append({
             "pastille": alert.pastille(j),
-            "route": j["route"],
+            "route": j["route"] + (f" (via {j['short']})" if j["kind"] == "combo" else ""),
             "sens": j["sens"],
             "kind": j["kind"],
             "date": j["date"],
@@ -35,7 +35,7 @@ def main():
             "lastminute": int(j["l1"]["days_to_dep"]) <= 2,
             "detail": (f"{j['l1']['heure_depart']}→{j['l1']['heure_arrivee']} ({j['l1']['train_no']}) → "
                        f"{j['l2']['heure_depart']}→{j['l2']['heure_arrivee']} ({j['l2']['train_no']}) "
-                       f"· corresp {alert.hm(j['gap'])} via {j['hub']}"
+                       f"· corresp {alert.hm(j['gap'])}{' ⚠️ serré' if j['gap'] <= j['buf'] + 10 else ''} via {j['hub']}"
                        if j["kind"] == "combo"
                        else f"train {j['l1']['train_no']}"),
         })
@@ -76,7 +76,7 @@ main{padding:8px 12px 40px;max-width:760px;margin:0 auto}
 <script>
 const DATA=__DATA__;
 const GROUPS=[["Tous",()=>1],["Metz⇄Lyon",j=>j.sens=="aller"||j.sens=="retour"],
-["⚡ <48h",j=>j.lastminute],["Secondaires",j=>j.sens!="aller"&&j.sens!="retour"]];
+["💎 bat le direct",j=>j.pastille=="💎"],["⚡ <48h",j=>j.lastminute],["Secondaires",j=>j.sens!="aller"&&j.sens!="retour"]];
 let cur=0;
 const fbox=document.getElementById("f");
 GROUPS.forEach((g,i)=>{const b=document.createElement("button");b.textContent=g[0];

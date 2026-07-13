@@ -15,16 +15,16 @@ LYON = "LYON"
 
 # Hubs de correspondance Metz<->Lyon.
 HUBS = [
-    {"match": "STRASBOURG", "fetch": "STRASBOURG",              "buf": 15, "label": "Strasbourg"},
-    {"match": "MULHOUSE",   "fetch": "MULHOUSE VILLE",          "buf": 15, "label": "Mulhouse"},
-    {"match": "DIJON",      "fetch": "DIJON VILLE",             "buf": 15, "label": "Dijon"},
-    {"match": "BESANCON",   "fetch": "BESANCON - F COMTE TGV",  "buf": 15, "label": "Besançon"},
-    {"match": "BELFORT",    "fetch": "BELFORT-MONTBELIARD TGV", "buf": 15, "label": "Belfort"},
-    {"match": "intramuros", "fetch": "PARIS",                   "buf": 30, "label": "Paris (Est↔G.Lyon, M5)"},
+    {"match": "STRASBOURG", "fetch": "STRASBOURG",              "buf": 15, "label": "Strasbourg", "short": "Strasbourg"},
+    {"match": "MULHOUSE",   "fetch": "MULHOUSE VILLE",          "buf": 15, "label": "Mulhouse", "short": "Mulhouse"},
+    {"match": "DIJON",      "fetch": "DIJON VILLE",             "buf": 15, "label": "Dijon", "short": "Dijon"},
+    {"match": "BESANCON",   "fetch": "BESANCON - F COMTE TGV",  "buf": 15, "label": "Besançon", "short": "Besançon"},
+    {"match": "BELFORT",    "fetch": "BELFORT-MONTBELIARD TGV", "buf": 15, "label": "Belfort", "short": "Belfort"},
+    {"match": "intramuros", "fetch": "PARIS",                   "buf": 30, "label": "Paris (Est↔G.Lyon, M5)", "short": "Paris"},
 ]
 
 # Backup retour Lyon -> CDG -> Lorraine TGV.
-CDG_BACKUP = {"A": "LYON", "hub": "ROISSY", "B": "LORRAINE", "buf": 20, "label": "CDG"}
+CDG_BACKUP = {"A": "LYON", "hub": "ROISSY", "B": "LORRAINE", "buf": 20, "label": "CDG", "short": "CDG"}
 
 # Liaisons secondaires surveillées en direct (pas de correspondance).
 WATCHLIST = [
@@ -36,6 +36,7 @@ WATCHLIST = [
 # Seuils couleur (minutes) — pertinents pour les combos Metz<->Lyon.
 DUREE_VERTE = 330   # <= 5h30 -> vert
 DUREE_JAUNE = 420   # <= 7h00 -> jaune ; au-delà -> rouge
+DIRECT_REF  = 290   # durée directe Metz<->Lyon de référence (4h50) si aucun direct ce jour-là
 
 
 def _fetch(tok):
