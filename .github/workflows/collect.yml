@@ -2,13 +2,12 @@ name: collect-tgvmax
 
 on:
   schedule:
-    # 08:00 UTC = 10:00 Paris (CEST). SNCF met a jour "debut de matinee".
-    # Note: GitHub peut retarder les runs planifies de qqs min a qqs heures.
-    - cron: "0 8 * * *"
-  workflow_dispatch: {}   # permet un declenchement manuel depuis l'onglet Actions
+    - cron: "0 5 * * *"     # 07:00 Paris — avant/apres refresh opendata (encadre)
+    - cron: "0 13 * * *"    # 15:00 Paris — apres refresh opendata (1x/jour)
+  workflow_dispatch: {}
 
 permissions:
-  contents: write         # necessaire pour committer les CSV via GITHUB_TOKEN
+  contents: write
 
 concurrency:
   group: collect
@@ -27,14 +26,30 @@ jobs:
       - name: Collect
         run: python collect_tgvmax_metz_paris.py
 
+      - name: Alert (Telegram)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python alert.py
+
       - name: Commit data
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/
           if git diff --staged --quiet; then
-            echo "Rien de nouveau aujourd'hui."
+            echo "Rien de nouveau."
           else
-            git commit -m "data: capture $(date -u +%F)"
+            git commit -m "data: capture $(date -u +%FT%H%MZ)"
             git push
           fi
+
+      - name: Notifier échec
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=⚠️ TGVmax : run ÉCHOUÉ ($(date -u +%FT%H%MZ)). Le bot ne veille plus — vérifie les logs Actions." >/dev/null

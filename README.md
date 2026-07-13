@@ -1,32 +1,57 @@
 # tgvmax-metz-paris
 
-Historisation quotidienne de la disponibilité TGVmax sur l'axe **Metz ⇄ Paris**.
+Suivi quotidien de la disponibilité TGVmax sur **Metz⇄Paris**, **Metz⇄Lyon** et **Paris⇄Lyon**,
+avec **alerte Telegram** à chaque nouvelle place Max Metz⇄Lyon.
 
 ## Pourquoi
+Le dataset SNCF `tgvmax` est une photo glissante J..J+30, écrasée chaque jour,
+sans historique. Ce repo capture l'état plusieurs fois/jour, l'archive horodaté,
+et notifie les nouveautés.
 
-Le [dataset SNCF `tgvmax`](https://data.sncf.com/explore/dataset/tgvmax/) est une
-photo glissante J..J+30, **écrasée chaque matin, sans aucun historique**. Impossible
-d'y voir comment la dispo d'un train évolue à l'approche du départ.
+## Config
+Toutes les liaisons (hubs, backup CDG, watchlist, seuils couleur) sont dans
+**`routes.py`** — seul fichier à éditer pour ajouter/retirer une liaison.
 
-Ce repo comble le trou : un run quotidien capture l'état courant et l'archive,
-horodaté. En accumulant, on reconstruit la courbe *dispo vs jours-avant-départ*
-par train × date — la seule base exploitable pour décider quand réserver.
+## Pièces
+- `collect_tgvmax_metz_paris.py` — collecteur multi-lignes (stdlib seule).
+- `alert.py` — diff des 2 dernières captures + push Telegram. Détecte les trajets Max
+  **Metz⇄Lyon** directs et correspondances (Strasbourg, Mulhouse, Dijon, Besançon,
+  Belfort, Paris) + un **backup retour Lyon→CDG→Lorraine TGV** (finir en navette). (2 billets séparés, battements réalistes (~15 min même gare, 60 min Paris Est↔G.Lyon),
+  dédoublonnage par trains, réglable en tête de `alert.py`).
+- `.github/workflows/collect.yml` — runs 06h30 & 14h30 Paris + commit auto.
+- `data/<datetime>Z.csv` — une capture horodatée par run.
 
-## Contenu
+## Configurer les alertes Telegram
+1. Sur Telegram, parle à `@BotFather` → `/newbot` → récupère le **token**.
+2. Écris un message à ton bot, puis ouvre
+   `https://api.telegram.org/bot<TOKEN>/getUpdates` → récupère ton **chat id**.
+3. Repo GitHub → Settings → Secrets and variables → Actions → New secret :
+   - `TELEGRAM_BOT_TOKEN`
+   - `TELEGRAM_CHAT_ID`
 
-- `collect_tgvmax_metz_paris.py` — collecteur (stdlib seule, aucune dépendance).
-- `.github/workflows/collect.yml` — run quotidien (08:00 UTC) + commit auto des CSV.
-- `data/AAAA-MM-JJ.csv` — une capture par jour.
+Sans ces secrets, le workflow tourne quand même mais n'envoie rien.
 
-## Schéma CSV
+## Affiner les critères
+Dans `alert.py`, fonction `passe_criteres` : décommente pour filtrer par jour
+(aller jeu/ven, retour dim) ou heure mini. Par défaut : toutes les places Max
+Metz⇄Lyon (le Max Lyon est rare, mieux vaut tout voir). Le combo via Paris double/triple
+les options, mais reste limité par le segment Metz⇄Paris (Max rare aussi).
+St-Étienne = TER hors TGVmax, non modélisé (on optimise jusqu'à Lyon).
 
-`capture_date, travel_date, days_to_dep, train_no, origine, destination, heure_depart, heure_arrivee, happy_card`
+## Hors périmètre (volontairement)
+Pas de réservation automatique : SNCF Connect bloque les bots, et aucun agent
+ne peut être convoqué à heure fixe pour piloter un navigateur. La réservation
+reste manuelle (1 tap depuis l'alerte). Assistance navigateur possible plus tard,
+en session interactive uniquement.
 
-`happy_card` : 1 = place Max réservable à l'instant de la capture, 0 = non.
+## Liaisons secondaires surveillées
+En plus de Metz⇄Lyon, alerte sur les directs Max de : Lyon⇄Lille,
+Paris⇄Hazebrouck, Lorraine TGV⇄Lille. Modifiable via `WATCHLIST` dans `alert.py`
+(et `ROUTES` dans le collecteur). Ces liaisons sont suivies en **direct only**
+(pas de correspondances).
 
-## Limites (à lire)
-
-- Historique = **à partir du 1er run**. Aucune donnée antérieure n'existe nulle part.
-- Chaque jour non collecté est perdu définitivement.
-- `days_to_dep` va de 0 à ~30 ; un voyage n'a une courbe complète que si la collecte
-  a démarré ≥30 j avant sa date.
+## Board web (GitHub Pages)
+`build_site.py` génère `site/index.html` (places Max du moment, filtrable) à
+partir de la dernière capture. Déployé par `.github/workflows/pages.yml` après
+chaque collecte. **À activer une fois** : repo → Settings → Pages → Source =
+**GitHub Actions**. C'est un outil de consultation (pull), complément des alertes.
