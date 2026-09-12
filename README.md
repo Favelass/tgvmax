@@ -53,6 +53,10 @@ une place déjà présente au 1er run) mais un **état** dans
 À J-3 le rappel 17h15 (`remind.py`) rappelle la cible : à ce stade les remises
 en vente passent par l'intraday, que l'opendata ne voit pas.
 
+Observé sur les dimanches Paris→Lyon : en été les places sortaient surtout à
+J-3..J-0, mais depuis la rentrée elles n'apparaissent qu'entre **J-25 et J-10**
+et sont épuisées bien avant le départ. Une cible se joue donc tôt, pas la veille.
+
 **Limite dure** : l'opendata SNCF n'est rafraîchie qu'**1×/jour** (vérifié :
 sur 10 jours, les captures 07h et 15h sont strictement identiques). Une place
 prise dans la journée n'apparaîtra jamais. Poller plus souvent n'y changerait
