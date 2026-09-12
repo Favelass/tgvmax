@@ -33,6 +33,33 @@ WATCHLIST = [
     {"a": "LORRAINE TGV", "b": "LILLE",      "na": "Lorraine TGV", "nb": "Lille"},
 ]
 
+# ── Cibles datées : alertes ponctuelles sur une OD + une date + un créneau ──
+# Une cible = "préviens-moi dès qu'une place Max apparaît sur CETTE OD, CE
+# jour-là, dans CE créneau de départ". Indépendant du diff Metz⇄Lyon : l'état
+# est mémorisé dans data/targets_seen.json (1 alerte par train, pas de spam),
+# et la cible s'éteint toute seule une fois la date passée.
+#   o_match/d_match : matching dans les CSV (origine startswith / destination in)
+#   fetch           : OD à récupérer côté collecteur
+TARGETS = [
+    {"date": "2026-10-04", "dep_min": "12:00", "dep_max": "19:00",
+     "o_match": "PARIS", "d_match": "LYON (intra", "fetch": ("PARIS", "LYON"),
+     "label": "Paris → Lyon (Part-Dieu/Perrache)", "note": ""},
+    {"date": "2026-10-04", "dep_min": "12:00", "dep_max": "19:00",
+     "o_match": "PARIS", "d_match": "LYON ST EXUPERY", "fetch": ("PARIS", "LYON"),
+     "label": "Paris → Lyon St-Exupéry", "note": "aéroport : +Rhônexpress ~30 min / 16 €"},
+    {"date": "2026-10-04", "dep_min": "12:00", "dep_max": "19:00",
+     "o_match": "PARIS", "d_match": "ETIENNE", "fetch": ("PARIS", "ETIENNE"),
+     "label": "Paris → Saint-Étienne", "note": "TGV direct (rare) ; sinon Lyon + TER hors TGVmax"},
+]
+
+
+def active_targets(today=None):
+    """Cibles dont la date n'est pas passée (comparaison sur la date de voyage)."""
+    import datetime as _dt
+    today = today or _dt.date.today()
+    return [t for t in TARGETS if _dt.date.fromisoformat(t["date"]) >= today]
+
+
 # Seuils couleur (minutes) — pertinents pour les combos Metz<->Lyon.
 DUREE_VERTE = 330   # <= 5h30 -> vert
 DUREE_JAUNE = 420   # <= 7h00 -> jaune ; au-delà -> rouge
@@ -52,6 +79,8 @@ def collect_pairs():
     pairs += [("LYON", "ROISSY"), ("ROISSY", "LORRAINE TGV")]
     for w in WATCHLIST:
         pairs.append((_fetch(w["a"]), _fetch(w["b"])))
+    for t in active_targets():
+        pairs.append(tuple(t["fetch"]))
     seen, out = set(), []
     for p in pairs:
         if p not in seen:

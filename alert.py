@@ -7,6 +7,7 @@ import datetime as dt
 import routes
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+STATE_TARGETS = os.path.join(DATA_DIR, "targets_seen.json")
 JOURS = ["lun", "mar", "mer", "jeu", "ven", "sam", "dim"]
 MAX_LAYOVER = 240
 
@@ -150,6 +151,78 @@ def fmt(j):
             f"   ⏱ {tot} · corresp {hm(j['gap'])}{' ⚠️ serré' if j['gap'] <= j['buf'] + 10 else ''} · {j['hub']}")
 
 
+# ── Cibles datées (routes.TARGETS) ────────────────────────────────────────
+# Logique volontairement séparée du diff Metz⇄Lyon : ici on ne veut pas rater
+# une place parce qu'elle était déjà là à la capture précédente. On mémorise
+# donc les trains déjà notifiés dans data/targets_seen.json (committé par le
+# workflow) -> 1 alerte par train, même au 1er run après déploiement.
+
+def target_hits(rows, today=None):
+    """Places Max correspondant à une cible active. Dédoublonné par
+    (date, train, heure de départ, destination) — un même train apparaît 2x
+    dans l'opendata (Part-Dieu puis Perrache) : on garde l'arrivée la plus tôt."""
+    best = {}
+    for t in routes.active_targets(today):
+        for r in rows:
+            if (r["happy_card"] == "1"
+                    and r["travel_date"] == t["date"]
+                    and r["origine"].startswith(t["o_match"])
+                    and t["d_match"] in r["destination"]
+                    and t["dep_min"] <= r["heure_depart"] <= t["dep_max"]):
+                sig = f"{t['date']}|{t['d_match']}|{r['train_no']}|{r['heure_depart']}"
+                cur = best.get(sig)
+                if cur is None or r["heure_arrivee"] < cur["r"]["heure_arrivee"]:
+                    best[sig] = {"sig": sig, "t": t, "r": r}
+    return sorted(best.values(), key=lambda h: (h["r"]["travel_date"], h["r"]["heure_depart"]))
+
+
+def load_seen():
+    try:
+        with open(STATE_TARGETS, encoding="utf-8") as f:
+            return set(json.load(f))
+    except (OSError, ValueError):
+        return set()
+
+
+def save_seen(sigs):
+    with open(STATE_TARGETS, "w", encoding="utf-8") as f:
+        json.dump(sorted(sigs), f, ensure_ascii=False, indent=0)
+
+
+def fmt_target(h):
+    t, r = h["t"], h["r"]
+    wd = JOURS[dt.date.fromisoformat(r["travel_date"]).weekday()]
+    jj = "/".join(reversed(r["travel_date"].split("-")[1:]))
+    dur = hm(mins(r["heure_arrivee"]) - mins(r["heure_depart"]))
+    note = f"\n   ⚠️ {t['note']}" if t["note"] else ""
+    return (f"🔥 {t['label']} · {wd} {jj}\n"
+            f"   {r['heure_depart']}→{r['heure_arrivee']} · {dur} · train {r['train_no']}{note}")
+
+
+def alert_targets(rows, today=None):
+    """Notifie les places Max sur cibles jamais encore signalées. True si envoi."""
+    actives = routes.active_targets(today)
+    if not actives:
+        return False
+    hits = target_hits(rows, today)
+    seen = load_seen()
+    news = [h for h in hits if h["sig"] not in seen]
+    if news:
+        creneaux = ", ".join(sorted({f"{t['dep_min']}–{t['dep_max']}" for t in actives}))
+        # send() AVANT save_seen() : si Telegram tombe, l'état n'est pas écrit
+        # et la place est renotifiée au run suivant (mieux que la perdre).
+        send(f"🎯 CIBLE — {len(news)} place(s) Max sur ta demande ({creneaux})\n\n"
+             + "\n\n".join(fmt_target(h) for h in news)
+             + "\n\n⏳ ça part en minutes → réserve tout de suite : "
+               "https://www.sncf-connect.com/")
+    else:
+        print(f"Cibles : {len(hits)} place(s) Max, rien de nouveau.")
+    # Purge des signatures dont la cible a expiré ; on garde celles encore suivies.
+    save_seen({h["sig"] for h in hits} |
+              {s for s in seen if any(s.startswith(t["date"]) for t in actives)})
+    return bool(news)
+
+
 def send(text):
     tok, chat = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
     if not tok or not chat:
@@ -168,9 +241,14 @@ def order(j):
 
 def main():
     files = sorted(glob.glob(os.path.join(DATA_DIR, "*T*Z.csv")))
+    if not files:
+        print("Aucune capture."); return
     if len(files) < 2:
+        alert_targets(load(files[-1]))
         print("Moins de 2 captures -> pas de diff (1er run)."); return
-    prev, cur = build_journeys(load(files[-2])), build_journeys(load(files[-1]))
+    last_rows = load(files[-1])
+    alert_targets(last_rows)
+    prev, cur = build_journeys(load(files[-2])), build_journeys(last_rows)
     news = [cur[k] for k in cur.keys() - prev.keys() if passe_filtre(cur[k])]
     news = sorted(dedup(list(cur.values()), news), key=order)
     if not news:

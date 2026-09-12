@@ -1,7 +1,8 @@
 # tgvmax-metz-paris
 
 Suivi quotidien de la disponibilité TGVmax sur **Metz⇄Paris**, **Metz⇄Lyon** et **Paris⇄Lyon**,
-avec **alerte Telegram** à chaque nouvelle place Max Metz⇄Lyon.
+avec **alerte Telegram** à chaque nouvelle place Max Metz⇄Lyon,
+et **alertes ciblées** sur une date + un créneau précis (`TARGETS`).
 
 ## Pourquoi
 Le dataset SNCF `tgvmax` est une photo glissante J..J+30, écrasée chaque jour,
@@ -36,7 +37,26 @@ Dans `alert.py`, fonction `passe_criteres` : décommente pour filtrer par jour
 (aller jeu/ven, retour dim) ou heure mini. Par défaut : toutes les places Max
 Metz⇄Lyon (le Max Lyon est rare, mieux vaut tout voir). Le combo via Paris double/triple
 les options, mais reste limité par le segment Metz⇄Paris (Max rare aussi).
-St-Étienne = TER hors TGVmax, non modélisé (on optimise jusqu'à Lyon).
+Lyon⇄St-Étienne = TER, hors TGVmax (non modélisé) ; en revanche **Paris⇄St-Étienne**
+a des TGV inOui directs, éligibles Max : voir les cibles datées ci-dessous.
+
+## Alertes ciblées (une date, un créneau)
+Pour un besoin ponctuel — « préviens-moi s'il y a un Paris→Lyon le dim 4 oct
+après-midi » — on ajoute une entrée dans **`TARGETS`** (`routes.py`) :
+OD + date + fenêtre de départ. Le collecteur récupère l'OD automatiquement,
+`alert.py` envoie une alerte 🎯 dès qu'une place Max y apparaît, et la cible
+s'éteint seule une fois la date passée.
+
+Différence avec l'alerte principale : pas de diff entre 2 captures (on raterait
+une place déjà présente au 1er run) mais un **état** dans
+`data/targets_seen.json` → **1 alerte par train**, jamais de spam.
+À J-3 le rappel 17h15 (`remind.py`) rappelle la cible : à ce stade les remises
+en vente passent par l'intraday, que l'opendata ne voit pas.
+
+**Limite dure** : l'opendata SNCF n'est rafraîchie qu'**1×/jour** (vérifié :
+sur 10 jours, les captures 07h et 15h sont strictement identiques). Une place
+prise dans la journée n'apparaîtra jamais. Poller plus souvent n'y changerait
+rien — le dernière-minute se joue à la main sur l'app.
 
 ## Hors périmètre (volontairement)
 Pas de réservation automatique : SNCF Connect bloque les bots, et aucun agent
